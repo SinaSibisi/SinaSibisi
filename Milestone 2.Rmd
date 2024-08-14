@@ -1,0 +1,380 @@
+---
+title: "Milestone 2"
+author: "Phila"
+date: "2023-10-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(learnr)
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(MASS)
+library(caret)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+#df <- read.csv("Country 2019-23 data1.csv")
+
+# Check for missing values in each column
+colSums(is.na(Country_2019_23_data1))
+
+# Replace missing values with the mean of the respective column
+for (col in colnames(Country_2019_23_data1)) {
+  Country_2019_23_data1[is.na(Country_2019_23_data1[, col]), col] <- mean(Country_2019_23_data1[, col], na.rm = TRUE)
+}
+
+# Verify that there are no more missing values
+colSums(is.na(Country_2019_23_data1))
+
+# Save the imputed dataset to a new CSV file
+write.csv(Country_2019_23_data1, "imputed_dataset.csv", row.names = FALSE)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# Check for missing values in each column
+missing_values_per_column <- colSums(is.na(weather))
+
+# Iterate through each numerical column with missing values
+for (col in names(missing_values_per_column[missing_values_per_column > 0])) {
+  # Calculate the mean of the column
+  mean_value <- mean(weather[[col]], na.rm = TRUE)
+
+  # Impute missing values with the mean for the specific column
+  weather <- weather %>% mutate(!!col := ifelse(is.na(!!as.name(col)), mean_value, !!as.name(col)))
+}
+
+# Check for missing values in the dataset after imputation
+colSums(is.na(weather))
+
+# Save the updated dataset to a new CSV file
+write.csv(weather, "imputed_dataset_weather.csv", row.names = FALSE)
+
+```
+
+```{r}
+#str(crime_rates)
+#str(eskom)
+#str(food_prices)
+#str(imputed_weather)
+
+crime_rates$Date <- as.Date(crime_rates$Date)
+eskom$Date <- as.Date(eskom$Date)
+food_prices$Date <- as.Date(food_prices$Date)
+imputed_weather$Date <- as.Date(imputed_weather$Date)
+
+# Check column names in both datasets
+#identical(names(crime_rates), names(eskom), names(food_prices), names(imputed_weather))
+
+#merged_df <- left_join(crime_rates, eskom, by = "Date")
+
+
+merged_df <- eskom %>% left_join(crime_rates, "Date") %>% select(event_type, interaction)
+
+#merged_df <- bind_rows(crime_rates, eskom, food_prices, imputed_weather)
+
+head(merged_df)  # Display the first few rows to verify the merge
+
+# Save the merged dataset to a new CSV file
+write.csv(merged_df, "merged_dataset.csv", row.names = FALSE)
+```
+
+```{r}
+#MODE IMPUTATION
+# Check for missing values in each column
+missing_values_per_column <- colSums(is.na(df))
+
+# Iterate through each column with missing values
+for (col in names(missing_values_per_column[missing_values_per_column > 0])) {
+  # Calculate the mode of the column
+  mode_value <- as.character(names(sort(table(df[[col]]), decreasing = TRUE)[1]))
+
+  # Impute missing values in the column with the mode
+  df[[col]][is.na(df[[col]])] <- mode_value
+}
+
+# Check for missing values in the entire dataset
+sum(is.na(df))
+
+# Save the updated dataset to a new CSV file
+write.csv(df, "updated_dataset.csv", row.names = FALSE)
+```
+
+```{r}
+#DAILY AVERAGE ESKOM for Load shedding Stages
+eskom$Date <- as.POSIXct(eskom$Date, format = "%Y-%m-%d %H:%M:%S") # Convert to POSIXct
+eskom$Date <- as.Date(eskom$Date) # Extract date
+
+daily_averages_eskom <- eskom %>%
+  group_by(Date) %>%
+  summarise(across(everything(), mean, na.rm = TRUE))
+
+# Save the daily averages dataset to a new CSV file. (Data given in hourly= Wanted in daily)
+#Mean= (given minimum and maximum temperature daily)
+write.csv(daily_averages_eskom, "daily_averages_eskom.csv", row.names = FALSE)
+
+```
+
+```{r}
+#MONTHLY AVERAGE FOOD PRICES WITH COMMODITY
+food_prices$Date <- as.Date(food_prices$Date, format = "%Y-%m-%d")
+
+monthly_averages_food <- food_prices %>%
+  group_by(Date) %>%
+  summarise(monthly_average_value = mean(price, na.rm = TRUE))
+
+# Save the daily averages dataset with date to a new CSV file
+write.csv(monthly_averages_food, "monthly_averages_food.csv", row.names = FALSE)
+```
+
+```{r}
+#CRIME RATES DAILY
+crime_rates$Date <- as.Date(crime_rates$Date, format = "%Y-%m-%d")
+
+daily_crime_rates <- crime_rates %>%
+  group_by(Date) %>%
+  summarise(across(everything(), ~ names(which.max(table(.))), .names = "mode_{.col}"))
+
+# Save the daily averages dataset with date to a new CSV file
+write.csv(daily_crime_rates, "daily_crime_rates.csv", row.names = FALSE)
+```
+
+```{r}
+#MUTATE FINAL MERGED DATA
+
+final_merged_dataset <- merged_dataset %>%
+  mutate(max_stage = ifelse(is.na(max_stage), 0, max_stage),
+          Original_Res_Forecast_before_Lockdown = ifelse(is.na(Original_Res_Forecast_before_Lockdown), 0, Original_Res_Forecast_before_Lockdown),
+         mode_event_type = ifelse(is.na(mode_event_type), "Peaceful", mode_event_type),
+         mode_interaction = ifelse(is.na(mode_interaction), 100, mode_interaction))
+
+
+# Check for missing values in the updated dataset
+colSums(is.na(final_merged_dataset))
+
+# Save the updated dataset to a new CSV file
+write.csv(final_merged_dataset, "final_dataset.csv", row.names = FALSE)
+```
+
+```{r}
+#DAILY AVERAGE WEATHER
+imputed_weather$Date <- as.POSIXct(imputed_weather$Date, format = "%Y-%m-%d %H:%M:%S") # Convert to POSIXct
+imputed_weather$Date <- as.Date(imputed_weather$Date) # Extract date
+
+daily_averages_weather <- imputed_weather %>%
+  group_by(Date) %>%
+  summarise(across(everything(), mean, na.rm = TRUE))
+
+# Save the daily averages dataset to a new CSV file
+write.csv(daily_averages_weather, "daily_averages_weather.csv", row.names = FALSE)
+```
+
+```{r}
+# Function to calculate precision
+calculate_precision <- function(actual, predicted) {
+  true_positives <- sum(actual == 1 & predicted == 1)
+  false_positives <- sum(actual == 0 & predicted == 1)
+  
+  precision <- true_positives / (true_positives + false_positives)
+  return(precision)
+}
+
+# Function to calculate recall (sensitivity)
+calculate_recall <- function(actual, predicted) {
+  true_positives <- sum(actual == 1 & predicted == 1)
+  false_negatives <- sum(actual == 1 & predicted == 0)
+  
+  recall <- true_positives / (true_positives + false_negatives)
+  return(recall)
+}
+
+# Function to calculate F1 score
+calculate_f1_score <- function(precision, recall) {
+  f1_score <- 2*((precision * recall) / (precision + recall))
+  return(f1_score)
+}
+```
+
+```{r}
+#MULTINOMIAL LOGISTIC REGRESSION (TRAINING)
+# Load necessary libraries
+#"nnet" library is for training feedforward input dat to the regression model.
+library(nnet)
+
+# Assuming you have a dataset with columns X1, X2, X3, X4, and target
+# Adjust the column names accordingly
+#After 250 iterations the model did not change the predictions.
+num_iterations <- 250
+
+# List to store the models
+models <- list()
+print("Column Names:")
+print(colnames(train_data))
+
+# Fit the multinomial logistic regression model
+model <- multinom(as.factor(max_stage) ~ Residual_Demand + Thermal_Generation + Manual_Load_Reduction + Temperature + mode_interaction, data = train_data)
+
+# Print summary of the model
+summary(model)
+
+# Fit the multinomial logistic regression model
+for (i in 1:num_iterations){
+model <- multinom(as.factor(models) ~ Residual_Demand + Thermal_Generation + Manual_Load_Reduction + Temperature + mode_interaction, data = train_data)
+
+# Store the model up until 250
+  models[[i]] <- model
+}
+
+# Use the model from the last iteration for evaluation (250)
+last_model <- models[[num_iterations]]
+
+# Make predictions on the dataset
+train_data$predicted <- predict(last_model, train_data)
+
+# Evaluate the model's performance (e.g., accuracy)
+train_accuracy <- (sum(train_data$predicted == train_data$max_stage) / length(train_data$max_stage))*100
+training_accuracy <- sprintf("Training Accuracy: %.2f%%", train_accuracy)
+print(training_accuracy)
+
+
+# Calculate mean squared error (MSE) for training set
+# Convert to numeric if factors
+train_data$max_stage <- as.numeric(as.character(train_data$max_stage))
+train_data$predicted <- as.numeric(as.character(train_data$predicted))
+
+# Calculate MSE
+mse_train <- 0.5*sum((train_data$max_stage - train_data$predicted)^2)
+cat("Mean Squared Error (MSE) for Training Set:", mse_train)
+
+
+# Create confusion matrix
+# Assuming 'train_data$max_stage' has the levels you want for the predicted values
+predicted_levels <- levels(train_data$max_stage)
+
+# Convert predicted values to a factor with the same levels as 'max_stage'
+train_data$predicted <- factor(train_data$predicted, levels = predicted_levels)
+
+# Create a confusion table
+conf_table_train <- xtabs(~ train_data$predicted + train_data$max_stage)
+conf_matrix_train <- as.matrix(conf_table_train)
+
+# Print the confusion matrix
+print("Confusion Matrix for Training Set:")
+print(conf_matrix_train)
+
+
+# Precision, Recall(sensitivity) and F1 score
+# Calculate metrics for training set
+precision_train <- calculate_precision(train_data$max_stage, train_data$predicted)
+recall_train <- calculate_recall(train_data$max_stage, train_data$predicted)
+f1_score_train <- calculate_f1_score(precision_train, recall_train)
+
+
+print("Metrics for Training Set:\n")
+cat("Precision:", precision_train, "\n")
+cat("Recall (Sensitivity):", recall_train, "\n")
+cat("F1 Score:", f1_score_train, "\n\n")
+```
+
+```{r}
+#VALIDATION
+# Predict on validation set
+validation_predictions <- predict(last_model, valid_data)
+
+# Evaluate the model's performance (e.g., accuracy)
+validation_accuracy <- (sum(validation_predictions == valid_data$max_stage) / length(valid_data$max_stage))*100
+valid_accuracy <- sprintf("Validation Accuracy: %.2f%%", validation_accuracy)
+print(valid_accuracy)
+
+# Calculate mean squared error (MSE) for validation set
+# Convert to numeric if factors
+valid_data$max_stage <- as.numeric(as.character(valid_data$max_stage))
+validation_predictions <- as.numeric(as.character(validation_predictions))
+mse_validation <- 0.5*sum((valid_data$max_stage - validation_predictions)^2)
+cat("Mean Squared Error (MSE) for Validation Set:", mse_validation)
+
+# Assuming 'train_data$max_stage' has the levels you want for the predicted values
+predicted_levels_valid <- levels(valid_data$max_stage)
+
+# Convert predicted values to a factor with the same levels as 'max_stage'
+validation_predictions <- factor(validation_predictions, levels = predicted_levels_valid)
+
+# Create a confusion table
+conf_table_valid <- xtabs(~ validation_predictions + valid_data$max_stage)
+conf_matrix_valid <- as.matrix(conf_table_valid)
+
+# Print the confusion matrix
+print("Confusion Matrix for Validation Set:")
+print(conf_matrix_valid)
+
+# Precision, Recall(sensitivity) and F1 score
+# Calculate metrics for validation set
+precision_validation <- calculate_precision(valid_data$max_stage, validation_predictions)
+recall_validation <- calculate_recall(valid_data$max_stage, validation_predictions)
+f1_score_validation <- calculate_f1_score(precision_validation, recall_validation)
+
+print("Metrics for Validation Set:\n")
+cat("Precision:", precision_validation, "\n")
+cat("Recall (Sensitivity):", recall_validation, "\n")
+cat("F1 Score:", f1_score_validation, "\n\n")
+```
+
+```{r}
+#TEST
+# Predict on test set
+test_predictions <- predict(last_model, test_data)
+
+# Evaluate the model's performance (e.g., accuracy)
+test_accuracy <- (sum(test_predictions == test_data$max_stage) / length(test_data$max_stage))*100
+accuracy <- sprintf("Test Accuracy: %.2f%%", test_accuracy)
+print(accuracy)
+
+# Calculate mean squared error (MSE) for testing set
+# Convert to numeric if factors
+test_data$max_stage <- as.numeric(as.character(test_data$max_stage))
+test_predictions <- as.numeric(as.character(test_predictions))
+mse_test <- 0.5*sum((test_data$max_stage - test_predictions)^2)
+cat("Mean Squared Error (MSE) for Testing Set:", mse_test)
+
+
+# Assuming 'train_data$max_stage' has the levels you want for the predicted values
+predicted_levels_test <- levels(test_data$max_stage)
+
+# Convert predicted values to a factor with the same levels as 'max_stage'
+test_predictions <- factor(test_predictions, levels = predicted_levels_test)
+
+# Create a confusion table
+conf_table_test <- xtabs(~ test_predictions + test_data$max_stage)
+conf_matrix_test <- as.matrix(conf_table_test)
+
+# Print the confusion matrix
+print("Confusion Matrix for Testing Set:")
+print(conf_matrix_test)
+
+# Precision, Recall(sensitivity) and F1 score
+# Calculate metrics for testing set
+precision_test <- calculate_precision(test_data$max_stage, test_predictions)
+recall_test <- calculate_recall(test_data$max_stage, test_predictions)
+f1_score_test <- calculate_f1_score(precision_test, recall_test)
+
+print("Metrics for Testing Set:\n")
+cat("Precision:", precision_test, "\n")
+cat("Recall (Sensitivity):", recall_test, "\n")
+cat("F1 Score:", f1_score_test, "\n")
+```
+
+```{}
+```
